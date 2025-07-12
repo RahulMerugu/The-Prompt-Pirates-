@@ -1,0 +1,116 @@
+const express = require('express');
+const router = express.Router();
+const db = require('../db');
+
+// POST /api/users
+router.post('/', (req, res) => {
+  const { name, location, availability, is_public, linkedin } = req.body;
+
+  if (!name || !availability) {
+    return res.status(400).json({
+      success: false,
+      error: 'Name and availability are required'
+    });
+  }
+
+  const query = `
+    INSERT INTO users (name, location, availability, is_public, linkedin)
+    VALUES (?, ?, ?, ?, ?)
+  `;
+
+  db.query(
+    query,
+    [name, location || null, availability, is_public ?? true, linkedin || null],
+    (err, result) => {
+      if (err) return res.status(500).json({ success: false, error: err.message });
+
+      res.status(201).json({
+        success: true,
+        message: 'User created successfully',
+        data: { userId: result.insertId }
+      });
+    }
+  );
+});
+
+// GET /api/users
+router.get('/', (req, res) => {
+  db.query(`SELECT * FROM users`, (err, results) => {
+    if (err) return res.status(500).json({ success: false, error: err.message });
+
+    res.json({
+      success: true,
+      data: results
+    });
+  });
+});
+
+// GET /api/users/:id/skills
+router.get('/:id/skills', (req, res) => {
+  const userId = req.params.id;
+
+  db.query(`SELECT skill_name, type FROM skills WHERE user_id = ?`, [userId], (err, results) => {
+    if (err) return res.status(500).json({ success: false, error: err.message });
+
+    const offered = [], wanted = [];
+
+    results.forEach(skill => {
+      skill.type === 'offered' ? offered.push(skill.skill_name) : wanted.push(skill.skill_name);
+    });
+
+    res.json({
+      success: true,
+      data: {
+        userId: parseInt(userId),
+        offeredSkills: offered,
+        wantedSkills: wanted
+      }
+    });
+  });
+});
+
+// DELETE /api/users/:id - Delete a user by ID
+router.delete('/:id', (req, res) => {
+  const userId = req.params.id;
+
+  const query = `DELETE FROM users WHERE id = ?`;
+
+  db.query(query, [userId], (err, result) => {
+    if (err) return res.status(500).json({ success: false, error: err.message });
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully',
+      data: { userId: parseInt(userId) }
+    });
+  });
+});
+
+// PUT /api/users/:id/ban - Ban or unban a user
+router.put('/:id/ban', (req, res) => {
+  const userId = req.params.id;
+  const { banned } = req.body; // true or false
+
+  db.query(
+    'UPDATE users SET is_banned = ? WHERE id = ?',
+    [banned ? 1 : 0, userId],
+    (err, result) => {
+      if (err) return res.status(500).json({ success: false, error: err.message });
+
+      res.json({
+        success: true,
+        message: banned ? 'User banned' : 'User unbanned'
+      });
+    }
+  );
+});
+
+
+module.exports = router;

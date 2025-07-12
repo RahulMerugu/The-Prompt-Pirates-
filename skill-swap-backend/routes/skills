@@ -1,0 +1,46 @@
+const express = require('express');
+const router = express.Router();
+const db = require('../db');
+
+// POST /api/skills
+router.post('/', (req, res) => {
+  const { user_id, skill_name, type } = req.body;
+
+  if (!user_id || !skill_name || !['offered', 'wanted'].includes(type)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid input. Required: user_id, skill_name, type ("offered" or "wanted")'
+    });
+  }
+
+  db.query(
+    `INSERT INTO skills (user_id, skill_name, type) VALUES (?, ?, ?)`,
+    [user_id, skill_name, type],
+    (err, result) => {
+      if (err) return res.status(500).json({ success: false, error: err.message });
+
+      res.status(201).json({
+        success: true,
+        message: 'Skill added successfully',
+        data: { skillId: result.insertId }
+      });
+    }
+  );
+});
+
+// DELETE /api/skills/:id - Admin deletes a skill
+router.delete('/:id', (req, res) => {
+  const skillId = req.params.id;
+
+  db.query('DELETE FROM skills WHERE id = ?', [skillId], (err, result) => {
+    if (err) return res.status(500).json({ success: false, error: err.message });
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, error: 'Skill not found' });
+    }
+
+    res.json({ success: true, message: 'Skill deleted by admin' });
+  });
+});
+
+module.exports = router;

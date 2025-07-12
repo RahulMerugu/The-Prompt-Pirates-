@@ -1,0 +1,134 @@
+const express = require('express');
+const router = express.Router();
+const db = require('../db');
+
+// ✅ POST /api/admin/message - Send platform-wide message
+router.post('/message', (req, res) => {
+  const { title, message } = req.body;
+
+  if (!title || !message) {
+    return res.status(400).json({
+      success: false,
+      error: 'Title and message are required'
+    });
+  }
+
+  db.query(
+    'INSERT INTO admin_messages (title, message) VALUES (?, ?)',
+    [title, message],
+    (err, result) => {
+      if (err) return res.status(500).json({ success: false, error: err.message });
+
+      res.status(201).json({
+        success: true,
+        message: 'Platform-wide message sent'
+      });
+    }
+  );
+});
+
+// ✅ GET /api/admin/swaps?status=pending - View all swap requests (optional filter)
+router.get('/swaps', (req, res) => {
+  const { status } = req.query;
+
+  let query = 'SELECT * FROM swap_requests';
+  let values = [];
+
+  if (status) {
+    query += ' WHERE status = ?';
+    values.push(status);
+  }
+
+  db.query(query, values, (err, results) => {
+    if (err) return res.status(500).json({ success: false, error: err.message });
+
+    res.json({
+      success: true,
+      data: results
+    });
+  });
+});
+
+// ✅ PUT /api/admin/users/:id/ban - Ban or unban a user
+router.put('/users/:id/ban', (req, res) => {
+  const userId = req.params.id;
+  const { banned } = req.body;
+
+  if (typeof banned !== 'boolean') {
+    return res.status(400).json({
+      success: false,
+      error: 'banned must be true or false'
+    });
+  }
+
+  db.query(
+    'UPDATE users SET is_banned = ? WHERE id = ?',
+    [banned ? 1 : 0, userId],
+    (err, result) => {
+      if (err) return res.status(500).json({ success: false, error: err.message });
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ success: false, error: 'User not found' });
+      }
+
+      res.json({
+        success: true,
+        message: banned ? 'User has been banned' : 'User has been unbanned',
+        data: { userId: parseInt(userId) }
+      });
+    }
+  );
+});
+
+// ✅ GET /api/admin/messages - View all platform-wide messages
+router.get('/messages', (req, res) => {
+  db.query('SELECT * FROM admin_messages ORDER BY created_at DESC', (err, results) => {
+    if (err) return res.status(500).json({ success: false, error: err.message });
+
+    res.json({
+      success: true,
+      data: results
+    });
+  });
+});
+
+// GET /api/admin/users - Get all users (admin view)
+router.get('/users', (req, res) => {
+  db.query('SELECT * FROM users ORDER BY id', (err, results) => {
+    if (err) return res.status(500).json({ success: false, error: err.message });
+    res.json({ success: true, data: results });
+  });
+});
+
+// ✅ PUT /api/admin/swaps/:id - Accept or reject any swap request
+router.put('/swaps/:id', (req, res) => {
+  const swapId = req.params.id;
+  const { status } = req.body;
+
+  if (!['accepted', 'rejected'].includes(status)) {
+    return res.status(400).json({ success: false, error: 'Invalid status value' });
+  }
+
+  const query = `
+    UPDATE swap_requests
+    SET status = ?
+    WHERE id = ? AND status = 'pending'
+  `;
+
+  db.query(query, [status, swapId], (err, result) => {
+    if (err) return res.status(500).json({ success: false, error: err.message });
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, error: 'Swap not found or not pending' });
+    }
+
+    res.json({
+      success: true,
+      message: `Swap request ${status}`
+    });
+  });
+});
+
+
+
+module.exports = router;

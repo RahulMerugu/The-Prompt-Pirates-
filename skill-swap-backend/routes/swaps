@@ -1,0 +1,127 @@
+const express = require('express');
+const router = express.Router();
+const db = require('../db');
+
+// POST /api/swaps
+router.post('/', (req, res) => {
+  const { from_user_id, to_user_id, skill_requested, skill_offered } = req.body;
+
+  if (!from_user_id || !to_user_id || !skill_requested || !skill_offered) {
+    return res.status(400).json({
+      success: false,
+      error: 'All fields are required'
+    });
+  }
+
+  db.query(
+    `INSERT INTO swap_requests (from_user_id, to_user_id, skill_requested, skill_offered)
+     VALUES (?, ?, ?, ?)`,
+    [from_user_id, to_user_id, skill_requested, skill_offered],
+    (err, result) => {
+      if (err) return res.status(500).json({ success: false, error: err.message });
+
+      res.status(201).json({
+        success: true,
+        message: 'Swap request sent',
+        data: { swapId: result.insertId }
+      });
+    }
+  );
+});
+
+// GET /api/swaps/:userId
+router.get('/:userId', (req, res) => {
+  const userId = req.params.userId;
+
+  const query = `
+    SELECT sr.id AS swap_id, sr.from_user_id, u.name AS from_user_name,
+           sr.skill_offered, sr.skill_requested, sr.status
+    FROM swap_requests sr
+    JOIN users u ON sr.from_user_id = u.id
+    WHERE sr.to_user_id = ?
+  `;
+
+  db.query(query, [userId], (err, results) => {
+    if (err) return res.status(500).json({ success: false, error: err.message });
+
+    res.json({
+      success: true,
+      data: results
+    });
+  });
+});
+
+// PUT /api/swaps/:id
+router.put('/:id', (req, res) => {
+  const { status } = req.body;
+  const swapId = req.params.id;
+
+  if (!['accepted', 'rejected'].includes(status)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Status must be "accepted" or "rejected"'
+    });
+  }
+
+  db.query(
+    `UPDATE swap_requests SET status = ? WHERE id = ?`,
+    [status, swapId],
+    (err, result) => {
+      if (err) return res.status(500).json({ success: false, error: err.message });
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ success: false, error: 'Swap not found' });
+      }
+
+      res.json({
+        success: true,
+        message: `Swap request ${status}`
+      });
+    }
+  );
+});
+
+// DELETE /api/swaps/:id
+router.delete('/:id', (req, res) => {
+  const swapId = req.params.id;
+
+  db.query(
+    `DELETE FROM swap_requests WHERE id = ? AND status = 'pending'`,
+    [swapId],
+    (err, result) => {
+      if (err) return res.status(500).json({ success: false, error: err.message });
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Swap not found or not pending'
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Pending swap request deleted'
+      });
+    }
+  );
+});
+
+// GET /api/swaps - Admin view all swaps (optional ?status=pending)
+router.get('/', (req, res) => {
+  const { status } = req.query;
+
+  let query = 'SELECT * FROM swap_requests';
+  let values = [];
+
+  if (status) {
+    query += ' WHERE status = ?';
+    values.push(status);
+  }
+
+  db.query(query, values, (err, results) => {
+    if (err) return res.status(500).json({ success: false, error: err.message });
+
+    res.json({ success: true, data: results });
+  });
+});
+
+module.exports = router;
