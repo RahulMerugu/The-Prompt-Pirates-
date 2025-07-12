@@ -21,6 +21,7 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/skills', require('./routes/skills'));
 app.use('/api/swaps', require('./routes/swaps'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/auth', require('./routes/auth'));
 
 
 // Server port
