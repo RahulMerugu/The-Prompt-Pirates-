@@ -70,3 +70,8 @@ The Prompt Pirates/
 │ │ ├── UI-components/
 │ ├── public/
 │ └── package.json
+
+
+**Team Members:**
+ Rahul Merugu- Database and backend
+ K.B. Charan Teja- Frontend and Backend
